@@ -36,7 +36,7 @@ import serial
 
 # -------------------------------------------------------------------------------------------
 # 연결된 아두이노 포트 기입
-device = 'COM3'
+device = 'COM4'
 # -------------------------------------------------------------------------------------------
 
 
@@ -59,29 +59,33 @@ def get_ifdb(db, host='180.70.53.4', port=11334, user='root', passwd='root'):
 
 # -------------------------------------------------------------------------------------------
 # 아두이노에서 받은 데이터를 influxdb 클라이언트에 저장 및 터미널에 데이터 출력
-def my_test(ifdb, t, h):
+def my_test(ifdb, tA, tO, h):
     # json_body라는 이름의 세이브포인트(리스트) 생성
     json_body = []
     tablename = 'my_table'
-    temp = t
+    fieldname = 'my_table'
+    tempA = tA
+    tempO = tO
     humi = h
 
     # point라는 이름의 딕셔너리(key와 value 쌍을 가지는 자료형) 생성
     point = {
         "measurement": tablename,
+        "tags": {
+            "TempHumi": "TempHumi"
+        },
         "fields": {
-            "temp": temp,
+            "tempA": tempA,
+            "tempO": tempO,
             "humi": humi,
         },
         "time": None,
     }
 
 
-    # UTC 기준을 한국 표준시로 변경
-    dt = datetime.now()
+
     # 깊은 복사로 객체 복사
     np = deepcopy(point)
-    np['time'] = dt
     # 추가값이 저장된 np를 json에 스택 저장
     json_body.append(np)
     time.sleep(1)
@@ -91,7 +95,6 @@ def my_test(ifdb, t, h):
 
     # influxdb데이터를 불러와 result에 저장 및 출력
     result = ifdb.query('select * from %s' % tablename)
-    pprint.pprint(result.raw)
 
 
 # -------------------------------------------------------------------------------------------
@@ -103,35 +106,18 @@ def do_test():
     # 연결된 시리얼 포트를 통해 온습도 데이터 저장
     arduino = serial.Serial(device, 9600)
     # mydb라는 변수에 클라이언트 생성
-    mydb = get_ifdb(db='test2')
+    mydb = get_ifdb(db='m2')
     # 해당 클라이언트로 작업(my_test) 수행
     while True:
         time.sleep(1)
         data = arduino.readline()
-        t = float(data[0:5].decode())
-        h = float(data[5:10].decode())
+        tA = float(data[0:4].decode())
+        tO = float(data[6:10].decode())
+        h = float(data[12:16].decode())
         # -----------------------------------------------------------------
-        # 수집된 데이터 확인
-        if t > 35:
-            print(f'현재 온, 습도는 {t}°C, {h}% 이며 너무 덥습니다. 에어컨 ON')
-            arduino.write(b'1\n')
-        elif 27 < t < 35:
-            print(f'현재 온, 습도는 {t}°C, {h}% 이며 적당합니다. 에어컨 OFF')
-            arduino.write(b'2\n')
-        elif t > 47:
-            print(f'화재발생')
-            arduino.write(b'0\n')
-        if h > 70:
-            print(f'현재 온, 습도는 {t}°C, {h}% 이며 너무 습합니다. 팬 ON')
-            arduino.write(b'3\n')
-        elif 40 < h < 70:
-            print(f'현재 온, 습도는 {t}°C, {h}% 이며 적당합니다. 팬 OFF')
-            arduino.write(b'4\n')
-        elif h < 40:
-            print(f'현재 온, 습도는 {t}°C, {h}% 이며 너무 건조합니다. 물을 뿌립니다.')
         # -----------------------------------------------------------------
         # 수집된 데이터를 mydb에 저장하는 함수 실행
-        my_test(mydb, t, h)
+        my_test(mydb, tA, tO, h)
 # -------------------------------------------------------------------------------------------
 
 
